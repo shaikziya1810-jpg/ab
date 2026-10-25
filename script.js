@@ -1,150 +1,66 @@
-const form = document.getElementById("search-form");
+1const form = document.getElementById("search-form");
 const input = document.getElementById("search-input");
+const categorySelect = document.getElementById("category-select");
 const results = document.getElementById("results");
-const status = document.getElementById("status");
-const searchButton = document.getElementById("search-button");
+const statusText = document.getElementById("status");
 
-form.addEventListener("submit", async function (event) {
-    event.preventDefault();
+const IMAGES_PER_SEARCH = 12;
 
-    const query = input.value.trim();
+// Feature 1: keyword search
+// Feature 2: category selection
+// Feature 3: empty-state and loading messages
+function buildImageUrl(keyword, index) {
+  // loremflickr returns a photo matching the keyword; "lock" keeps each image different and stable
+  return "https://loremflickr.com/400/300/" + encodeURIComponent(keyword) + "?lock=" + index;
+}
 
-    if (query === "") {
-        status.textContent = "Please enter a search term.";
-        input.focus();
-        return;
-    }
+function renderImages(keyword) {
+  results.innerHTML = "";
 
-    // Clear previous results.
-    results.replaceChildren();
+  for (let i = 1; i <= IMAGES_PER_SEARCH; i++) {
+    const figure = document.createElement("figure");
+    figure.className = "card";
 
-    // Display the loading message.
-    const loadingMessage = document.createElement("p");
-    loadingMessage.className = "empty-message";
-    loadingMessage.textContent = "Searching...";
-    results.appendChild(loadingMessage);
+    const img = document.createElement("img");
+    img.src = buildImageUrl(keyword, i);
+    img.alt = keyword + " image " + i;
+    img.loading = "lazy";
 
-    status.textContent = "Searching...";
-    searchButton.disabled = true;
+    const caption = document.createElement("figcaption");
+    caption.textContent = keyword;
 
-    const url = new URL(
-        "https://commons.wikimedia.org/w/api.php"
-    );
+    figure.appendChild(img);
+    figure.appendChild(caption);
+    results.appendChild(figure);
+  }
+}
 
-    url.search = new URLSearchParams({
-        action: "query",
-        generator: "search",
-        gsrsearch: query,
-        gsrnamespace: "6",
-        gsrlimit: "20",
-        prop: "imageinfo",
-        iiprop: "url",
-        iiurlwidth: "400",
-        format: "json",
-        origin: "*"
-    }).toString();
+function handleSearch(event) {
+  event.preventDefault();
 
-    try {
-        const response = await fetch(url);
+  const typed = input.value.trim();
+  const category = categorySelect.value;
+  const keyword = typed || category;
 
-        if (!response.ok) {
-            throw new Error("Failed to fetch images.");
-        }
+  if (!keyword) {
+    results.innerHTML = "";
+    statusText.textContent = "Please type a keyword or choose a category to search.";
+    return;
+  }
 
-        const data = await response.json();
+  // If both are given, combine them for a more specific search
+  const finalKeyword = typed && category ? typed + "," + category : keyword;
 
-        const images = Object.values(
-            data.query?.pages || {}
-        );
+  statusText.textContent = "Showing results for \"" + finalKeyword.replace(",", " + ") + "\"";
+  renderImages(finalKeyword);
+}
 
-        // Keep only results with a usable image URL.
-        const validImages = images.filter(function (item) {
-            return item.imageinfo?.[0]?.thumburl ||
-                   item.imageinfo?.[0]?.url;
-        });
-
-        results.replaceChildren();
-
-        if (validImages.length === 0) {
-            const emptyMessage = document.createElement("p");
-            emptyMessage.className = "empty-message";
-            emptyMessage.textContent =
-                "No images found. Try another search.";
-
-            results.appendChild(emptyMessage);
-            status.textContent = "0 images found.";
-            return;
-        }
-
-        validImages.forEach(function (item) {
-            const imageInfo = item.imageinfo[0];
-            const imageUrl = imageInfo.thumburl || imageInfo.url;
-
-            const card = document.createElement("div");
-            card.className = "image-card";
-
-            const img = document.createElement("img");
-            img.src = imageUrl;
-            img.alt = item.title.replace(/^File:/, "");
-            img.loading = "lazy";
-
-            const caption = document.createElement("p");
-            caption.textContent = item.title.replace(/^File:/, "");
-
-            // Handle images that fail to load.
-            img.addEventListener("error", function () {
-                card.remove();
-
-                if (results.querySelector(".image-card") === null) {
-                    const message = document.createElement("p");
-                    message.className = "empty-message";
-                    message.textContent =
-                        "Unable to display images. Try another search.";
-
-                    results.replaceChildren(message);
-                    status.textContent = "No images could be displayed.";
-                } else {
-                    status.textContent =
-                        `${results.querySelectorAll(".image-card").length} images displayed.`;
-                }
-            });
-
-            card.appendChild(img);
-            card.appendChild(caption);
-            results.appendChild(card);
-        });
-
-        const count = results.querySelectorAll(".image-card").length;
-
-        status.textContent =
-            `${count} images found for "${query}".`;
-
-    } catch (error) {
-        console.error("Image search error:", error);
-
-        results.replaceChildren();
-
-        const errorMessage = document.createElement("p");
-        errorMessage.className = "empty-message";
-        errorMessage.textContent =
-            "Unable to load images. Please check your connection and try again.";
-
-        results.appendChild(errorMessage);
-        status.textContent = "Image search failed.";
-
-    } finally {
-        searchButton.disabled = false;
-    }
+// Picking a category searches straight away
+categorySelect.addEventListener("change", function () {
+  form.requestSubmit();
 });
 
-// Category buttons automatically start a search.
-const categories = document.querySelectorAll(
-    ".categories button"
-);
+form.addEventListener("submit", handleSearch);
 
-categories.forEach(function (button) {
-    button.addEventListener("click", function () {
-        input.value = button.textContent.trim();
-        form.requestSubmit();
-    });
-});
+// Initial empty state
+statusText.textContent = "Search for something to see images.";
